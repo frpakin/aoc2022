@@ -84,4 +84,4 @@ if __name__ == "__main__":
     print(f'Test 2 (301): {ret} [{ok_green if ret==301 else ko_red}]')
     inputs = loaddata('20221221.txt')
     ret = part2(inputs, debug=True)
-    print(f'Test 2 (3916936880448): {ret} [{ok_green if ret==3916936880448 else ko_red}]')
+    print(f'Part 2 (3916936880448): {ret} [{ok_green if ret==3916936880448 else ko_red}]')
