@@ -1,3 +1,5 @@
+from collections import defaultdict
+from itertools import permutations
 from colorama import Fore, Style
 import numpy as np
 from tqdm import trange
@@ -9,7 +11,7 @@ def load_data(fname):
         for c in l:
             if c=='#':
                 nb+=1
-    ret = np.zeros((3, nb), dtype=int)
+    ret = np.zeros((5, nb), dtype=int)
     nb = 0
     for i,l in enumerate(data.split('\n')):
         for j,c in enumerate(l):
@@ -21,10 +23,8 @@ def load_data(fname):
 
 
 def display(data, ite=-1):
-    min_x = data[0].min()
-    max_x = data[0].max()
-    min_y = data[1].min()
-    max_y = data[1].max()
+    min_x, max_x = data[0].min(), data[0].max()
+    min_y, max_y = data[1].min(), data[1].max()
     max_elves = data.shape[1]
     print('== Initial State ==' if ite==-1 else f'-- End of Round {ite} ==')
     for y in range(min_y, max_y+1):
@@ -41,82 +41,77 @@ def display(data, ite=-1):
 
 
 def part_1(data, max_rounds=10, debug=False):
+    ret1, ret2 = -1, 1
     # directions = { 0:'N', 1:'S', 2:'W', 3:'E', 4:'X' }
-    arretes = [ (0,1,2), (4,5,6), (0,6,7), (2,3,4) ]
+    inc = { 0:(0,-1), 1:(0,1), 2:(-1,0), 3:(1,0), 4:(0,0) }
+    arretes = [ [0,1,2], [4,5,6], [0,6,7], [2,3,4] ]
     direction = 0
     max_elves = data.shape[1]
-    neighbors = np.zeros(8, dtype=int)
+    available = np.ones((max_elves, 8), dtype=bool)
     if debug:
         display(data)
-    for _ in range(max_rounds) if debug else trange(max_rounds):
-        # Plan
-        for elf in range(max_elves):
+    #for _ in range(max_rounds) if debug else trange(max_rounds):
+    while True:
+        # Plan evaluate neighborhood
+        available.fill(True)
+        for elf, neighbor in permutations(range(max_elves), 2):
             x, y = data[0][elf], data[1][elf]
-            for i in range(8):
-                neighbors[i] = -1
-            for neighbor in range(max_elves):
-                if elf != neighbor:
-                    if data[0][neighbor] == x-1 and data[1][neighbor] == y-1:   # NW
-                        neighbors[0] = neighbor
-                    elif data[0][neighbor] == x and data[1][neighbor] == y-1:   # N
-                        neighbors[1] = neighbor
-                    elif data[0][neighbor] == x+1 and data[1][neighbor] == y-1: # NE
-                        neighbors[2] = neighbor
-                    elif data[0][neighbor] == x+1 and data[1][neighbor] == y:   # E
-                        neighbors[3] = neighbor
-                    elif data[0][neighbor] == x+1 and data[1][neighbor] == y+1: # SE
-                        neighbors[4] = neighbor
-                    elif data[0][neighbor] == x and data[1][neighbor] == y+1:   # S
-                        neighbors[5] = neighbor
-                    elif data[0][neighbor] == x-1 and data[1][neighbor] == y+1: # SW
-                        neighbors[6] = neighbor
-                    elif data[0][neighbor] == x-1 and data[1][neighbor] == y:   # W
-                        neighbors[7] = neighbor
-            if (neighbors==np.array([-1, -1, -1, -1, -1, -1, -1, -1])).all():
-                data[2][elf] = 4
-            else:
-                found = False
+            if data[0][neighbor] == x-1 and data[1][neighbor] == y-1:   # NW
+                available[elf][0], available[neighbor][4] = False, False
+            elif data[0][neighbor] == x and data[1][neighbor] == y-1:   # N
+                available[elf][1], available[neighbor][5] = False, False
+            elif data[0][neighbor] == x+1 and data[1][neighbor] == y-1: # NE
+                available[elf][2], available[neighbor][6] = False, False
+            elif data[0][neighbor] == x+1 and data[1][neighbor] == y:   # E
+                available[elf][3], available[neighbor][7] = False, False
+            elif data[0][neighbor] == x+1 and data[1][neighbor] == y+1: # SE
+                available[elf][4] , available[neighbor][0] = False, False
+            elif data[0][neighbor] == x and data[1][neighbor] == y+1:   # S
+                available[elf][5], available[neighbor][1] = False, False
+            elif data[0][neighbor] == x-1 and data[1][neighbor] == y+1: # SW
+                available[elf][6], available[neighbor][2] = False, False
+            elif data[0][neighbor] == x-1 and data[1][neighbor] == y:   # W
+                available[elf][7], available[neighbor][3] = False, False
+        # Plan choose direction  
+        data[2].fill(4)
+        for elf in range(max_elves):
+            if not available[elf].all(): 
                 for d in range(4):
                     dd = (d+direction)%4
-                    if all( [neighbors[arretes[dd][_]]==-1 for _ in range(3)] ):
+                    if available[elf][arretes[dd]].all():
                         data[2][elf] = dd
-                        found = True
-                        break
-                if not found:
-                    data[2][elf] = 4
-        # no move ?
-        if all([data[2][elf] == 4 for elf in range(max_elves)]):
-            break
-        # next move
-        next_pos = np.zeros_like(data)
+                        break      
+        # move / no move ?
         for elf in range(max_elves):
-            if data[2][elf] == 0:
-                next_pos[0][elf], next_pos[1][elf] = data[0][elf], data[1][elf]-1
-            elif data[2][elf] == 1:
-                next_pos[0][elf], next_pos[1][elf] = data[0][elf], data[1][elf]+1
-            elif data[2][elf] == 2:
-                next_pos[0][elf], next_pos[1][elf] = data[0][elf]-1, data[1][elf]
-            elif data[2][elf] == 3:
-                next_pos[0][elf], next_pos[1][elf] = data[0][elf]+1, data[1][elf]
-            else:
-                next_pos[0][elf], next_pos[1][elf] = data[0][elf], data[1][elf]
+            data[3][elf], data[4][elf] = data[0][elf]+inc[data[2][elf]][0], data[1][elf]+inc[data[2][elf]][1]
         # collide
-        collisions = []
+        collisions = defaultdict(list)
         for elf in range(max_elves):
-            for neighbor in range(max_elves):
-                if (elf != neighbor) and all([next_pos[_][elf]==next_pos[_][neighbor] for _ in range(2)]):
-                    collisions.append(elf)
-                    break
+            collisions[(data[3][elf], data[4][elf])].append(elf)
         # move
+        has_moved = False
         for elf in range(max_elves):
-            if elf not in collisions:
-                data[0][elf], data[1][elf] = next_pos[0][elf], next_pos[1][elf]
+            if len(collisions[(data[3][elf], data[4][elf])])<=1:
+                data[0][elf], data[1][elf] = data[3][elf], data[4][elf]
+                if data[2][elf] != 4:
+                    has_moved = True
+            #else:
+            #    print(f'{elf} - collisions[({next_pos[0][elf]}, {next_pos[1][elf]})] = {collisions[(next_pos[0][elf], next_pos[1][elf])]}')
+        if not has_moved:
+            break
+
+
         # pivot
         direction = (direction+1)%4
         # print
         if debug:
-            display(data, _+1)
-    return (1+np.max(data[0])-np.min(data[0])) * (1+np.max(data[1])-np.min(data[1])) - max_elves
+            display(data, ret2+1)
+        if ret2 == max_rounds:
+            ret1 = (1+np.max(data[0])-np.min(data[0])) * (1+np.max(data[1])-np.min(data[1])) - max_elves
+        ret2 += 1
+    if ret1 == -1:
+        ret1 = (1+np.max(data[0])-np.min(data[0])) * (1+np.max(data[1])-np.min(data[1])) - max_elves
+    return ret1, ret2
 
 
 def part_2(data, debug=False):
@@ -129,16 +124,17 @@ if __name__ == "__main__":
     ko_red = Fore.RED + Style.NORMAL + 'KO' + Style.RESET_ALL
     ok_green = Fore.GREEN + Style.NORMAL + 'OK' + Style.RESET_ALL
     inputs = load_data('20221223-t2.txt')
-    RET = part_1(inputs, debug=False)
-    print(f'Test 2 (25): {RET} [{ok_green if RET==25 else ko_red}]')
+    RET1, RET2 = part_1(inputs, debug=False)
+    print(f'Test 2P1 (25): {RET1} [{ok_green if RET1==25 else ko_red}]')
+    print(f'Test 2P2 (4): {RET2} [{ok_green if RET2==4 else ko_red}]')
     inputs = load_data('20221223-t1.txt')
-    RET = part_1(inputs, debug=False)
-    print(f'Test 1 (110): {RET} [{ok_green if RET==110 else ko_red}]')
-    inputs = load_data('20221222.txt')
-    RET = part_1(inputs)
-    print(f'Part 1 (?): {RET} [{ok_green if RET == 0 else ko_red}]')
+    RET1, RET2 = part_1(inputs, debug=False)
+    print(f'Test 1P1 (110): {RET1} [{ok_green if RET1==110 else ko_red}]')
+    print(f'Test 1P2 (20):  {RET2} [{ok_green if RET2==20 else ko_red}]')
+    inputs = load_data('20221223.txt')
+    RET1, RET2 = part_1(inputs)
+    print(f'Part 1 (3800): {RET1} [{ok_green if RET1 == 3800 else ko_red}]')
+    print(f'Part 2 (????): {RET2} [{ok_green if RET2==0 else ko_red}]')
     # ko 29344
-    #inputs = load_data('20221222-t1.txt')
-    #RET = part_2(inputs, debug=True)
-    #print(f'Test 2 (5031): {RET} [{ok_green if RET==5031 else ko_red}]')
+    
    
